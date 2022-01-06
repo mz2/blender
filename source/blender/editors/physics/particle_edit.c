@@ -2108,7 +2108,7 @@ static int select_random_exec(bContext *C, wmOperator *op)
   rng = BLI_rng_new_srandom(seed);
 
   switch (type) {
-    case RAN_HAIR:
+    case RAN_HAIR: {
       // Draw randomly from the visible points.
 
       PTCacheEditPoint **visible_pts = MEM_mallocN(sizeof(PTCacheEditPoint *) * edit->totpoint,
@@ -2135,7 +2135,8 @@ static int select_random_exec(bContext *C, wmOperator *op)
       }
       MEM_freeN(visible_pts);
       break;
-    case RAN_POINTS:
+    }
+    case RAN_POINTS: {
       // Draw randomly from the visible keys of visible points.
 
       int count_visible_keys = 0;
@@ -2160,7 +2161,7 @@ static int select_random_exec(bContext *C, wmOperator *op)
       }
 
       int count_select = round_fl_to_int(count_visible_keys * randfac);
-      BLI_array_randomize(visible_pts, sizeof(struct PointKeyPair), count_visible_pt, seed);
+      BLI_array_randomize(visible_keys, sizeof(struct PointKeyPair), count_visible_keys, seed);
 
       for (int i = 0; i < count_select; i++) {
         struct PointKeyPair pair = visible_keys[i];
@@ -2176,6 +2177,7 @@ static int select_random_exec(bContext *C, wmOperator *op)
       }
       MEM_freeN(visible_keys);
       break;
+    }
   }
 
   BLI_rng_free(rng);
