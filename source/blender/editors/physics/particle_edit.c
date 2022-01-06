@@ -2119,7 +2119,7 @@ static int select_random_exec(bContext *C, wmOperator *op)
         visible_pts[count_visible_pt++] = point;
       }
       int count_select = round_fl_to_int(count_visible_pt * randfac);
-      BLI_array_randomize(visible_pts, sizeof(int), count_visible_pt, seed);
+      BLI_array_randomize(visible_pts, sizeof(PTCacheEditPoint *), count_visible_pt, seed);
 
       for (int i = 0; i < count_select; i++) {
         PTCacheEditPoint *point = visible_pts[i];
@@ -2159,15 +2159,16 @@ static int select_random_exec(bContext *C, wmOperator *op)
         }
       }
 
-      int draws_needed = round_fl_to_int(count_visible_keys * randfac);
+      int count_select = round_fl_to_int(count_visible_keys * randfac);
+      BLI_array_randomize(visible_pts, sizeof(struct PointKeyPair), count_visible_pt, seed);
 
-      for (int i = 0; i < draws_needed; i++) {
+      for (int i = 0; i < count_select; i++) {
         struct PointKeyPair pair = visible_keys[i];
         PTCacheEditPoint *point = pair.point;
         PTCacheEditKey *key = pair.key;
         data.is_changed |= select_action_apply(point, key, select ? SEL_SELECT : SEL_DESELECT);
       }
-      for (int i = draws_needed; i < count_visible_keys; i++) {
+      for (int i = count_select; i < count_visible_keys; i++) {
         struct PointKeyPair pair = visible_keys[i];
         PTCacheEditPoint *point = pair.point;
         PTCacheEditKey *key = pair.key;
