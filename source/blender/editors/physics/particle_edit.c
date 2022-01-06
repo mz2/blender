@@ -2173,7 +2173,7 @@ static int select_random_exec(bContext *C, wmOperator *op)
         struct PointKeyPair pair = visible_keys[i];
         PTCacheEditPoint *point = pair.point;
         PTCacheEditKey *key = pair.key;
-        data.is_changed |= select_action_apply(point, key, select ? SEL_SELECT : SEL_DESELECT);
+        data.is_changed |= select_action_apply(point, key, select ? SEL_DESELECT : SEL_SELECT);
       }
       MEM_freeN(visible_keys);
       break;
