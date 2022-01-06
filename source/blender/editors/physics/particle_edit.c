@@ -2096,6 +2096,14 @@ static int select_random_exec(bContext *C, wmOperator *op)
   const float randfac = RNA_float_get(op->ptr, "ratio");
   const int seed = WM_operator_properties_select_random_seed_increment_get(op);
   const bool select = (RNA_enum_get(op->ptr, "action") == SEL_SELECT);
+
+  int draws_needed = round_fl_to_int(edit->totpoint * randfac);
+  int draws_made = 0;
+
+  if (draws_needed == 0) {
+    return OPERATOR_FINISHED;
+  }
+
   RNG *rng;
 
   type = RNA_enum_get(op->ptr, "type");
@@ -2104,27 +2112,38 @@ static int select_random_exec(bContext *C, wmOperator *op)
   data.select_action = SEL_SELECT;
   edit = PE_get_current(data.depsgraph, data.scene, data.ob);
 
+  int visible_pt_count = 0;
+  LOOP_VISIBLE_POINTS {
+    visible_pt_count++;
+  }
+
+  int *visible_pts = MEM_mallocN(sizeof(int) * visible_pt_count, __func__);
+  BLI_array_randomize(visible_pts, sizeof(int), visible_pt_count, seed);
+
   rng = BLI_rng_new_srandom(seed);
 
   switch (type) {
     case RAN_HAIR:
-      LOOP_VISIBLE_POINTS {
-        int flag = ((BLI_rng_get_float(rng) < randfac) == select) ? SEL_SELECT : SEL_DESELECT;
+      for (p = 0; p < visible_pt_count; p++) {
+        PTCacheEditPoint *point = &edit->points[p];
+        bool draw = p < draws_needed;
         LOOP_KEYS {
-          data.is_changed |= select_action_apply(point, key, flag);
+          data.is_changed |= select_action_apply(point, key, draw ? SEL_SELECT : SEL_DESELECT);
         }
       }
       break;
     case RAN_POINTS:
-      LOOP_VISIBLE_POINTS {
+      for (p = 0; p < visible_pt_count; p++) {
+        PTCacheEditPoint *point = &edit->points[p];
+        bool draw = p < draws_needed;
         LOOP_VISIBLE_KEYS {
-          int flag = ((BLI_rng_get_float(rng) < randfac) == select) ? SEL_SELECT : SEL_DESELECT;
-          data.is_changed |= select_action_apply(point, key, flag);
+          data.is_changed |= select_action_apply(point, key, draw ? SEL_SELECT : SEL_DESELECT);
         }
       }
       break;
   }
 
+  MEM_freeN(visible_pts);
   BLI_rng_free(rng);
 
   if (data.is_changed) {
