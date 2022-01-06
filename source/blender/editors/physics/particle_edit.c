@@ -2096,6 +2096,7 @@ static int select_random_exec(bContext *C, wmOperator *op)
   const float randfac = RNA_float_get(op->ptr, "ratio");
   const int seed = WM_operator_properties_select_random_seed_increment_get(op);
   const bool select = (RNA_enum_get(op->ptr, "action") == SEL_SELECT);
+
   RNG *rng;
 
   type = RNA_enum_get(op->ptr, "type");
@@ -2107,22 +2108,76 @@ static int select_random_exec(bContext *C, wmOperator *op)
   rng = BLI_rng_new_srandom(seed);
 
   switch (type) {
-    case RAN_HAIR:
+    case RAN_HAIR: {
+      // Draw randomly from the visible points.
+
+      PTCacheEditPoint **visible_pts = MEM_mallocN(sizeof(PTCacheEditPoint *) * edit->totpoint,
+                                                   __func__);
+
+      int count_visible_pt = 0;
       LOOP_VISIBLE_POINTS {
-        int flag = ((BLI_rng_get_float(rng) < randfac) == select) ? SEL_SELECT : SEL_DESELECT;
+        visible_pts[count_visible_pt++] = point;
+      }
+      int count_select = round_fl_to_int(count_visible_pt * randfac);
+      BLI_array_randomize(visible_pts, sizeof(PTCacheEditPoint *), count_visible_pt, seed);
+
+      for (int i = 0; i < count_select; i++) {
+        PTCacheEditPoint *point = visible_pts[i];
         LOOP_KEYS {
-          data.is_changed |= select_action_apply(point, key, flag);
+          data.is_changed |= select_action_apply(point, key, select ? SEL_SELECT : SEL_DESELECT);
         }
       }
+      for (int i = count_select; i < count_visible_pt; i++) {
+        PTCacheEditPoint *point = visible_pts[i];
+        LOOP_KEYS {
+          data.is_changed |= select_action_apply(point, key, select ? SEL_DESELECT : SEL_DESELECT);
+        }
+      }
+      MEM_freeN(visible_pts);
       break;
-    case RAN_POINTS:
+    }
+    case RAN_POINTS: {
+      // Draw randomly from the visible keys of visible points.
+
+      int count_visible_keys = 0;
       LOOP_VISIBLE_POINTS {
         LOOP_VISIBLE_KEYS {
-          int flag = ((BLI_rng_get_float(rng) < randfac) == select) ? SEL_SELECT : SEL_DESELECT;
-          data.is_changed |= select_action_apply(point, key, flag);
+          count_visible_keys++;
         }
       }
+
+      struct PointKeyPair {
+        PTCacheEditPoint *point;
+        PTCacheEditKey *key;
+      };
+
+      struct PointKeyPair *visible_keys = MEM_mallocN(
+          sizeof(struct PointKeyPair) * count_visible_keys, __func__);
+      int totk = 0;
+      LOOP_VISIBLE_POINTS {
+        LOOP_VISIBLE_KEYS {
+          visible_keys[totk++] = (struct PointKeyPair){point, key};
+        }
+      }
+
+      int count_select = round_fl_to_int(count_visible_keys * randfac);
+      BLI_array_randomize(visible_keys, sizeof(struct PointKeyPair), count_visible_keys, seed);
+
+      for (int i = 0; i < count_select; i++) {
+        struct PointKeyPair pair = visible_keys[i];
+        PTCacheEditPoint *point = pair.point;
+        PTCacheEditKey *key = pair.key;
+        data.is_changed |= select_action_apply(point, key, select ? SEL_SELECT : SEL_DESELECT);
+      }
+      for (int i = count_select; i < count_visible_keys; i++) {
+        struct PointKeyPair pair = visible_keys[i];
+        PTCacheEditPoint *point = pair.point;
+        PTCacheEditKey *key = pair.key;
+        data.is_changed |= select_action_apply(point, key, select ? SEL_DESELECT : SEL_SELECT);
+      }
+      MEM_freeN(visible_keys);
       break;
+    }
   }
 
   BLI_rng_free(rng);
