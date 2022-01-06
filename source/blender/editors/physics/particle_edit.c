@@ -2107,72 +2107,74 @@ static int select_random_exec(bContext *C, wmOperator *op)
 
   rng = BLI_rng_new_srandom(seed);
 
-  if (type == RAN_HAIR) {
-    // Draw randomly from the visible points.
+  switch (type) {
+    case RAN_HAIR:
+      // Draw randomly from the visible points.
 
-    PTCacheEditPoint **visible_pts = MEM_mallocN(sizeof(PTCacheEditPoint *) * edit->totpoint,
-                                                 __func__);
+      PTCacheEditPoint **visible_pts = MEM_mallocN(sizeof(PTCacheEditPoint *) * edit->totpoint,
+                                                   __func__);
 
-    int count_visible_pt = 0;
-    LOOP_VISIBLE_POINTS {
-      visible_pts[count_visible_pt++] = point;
-    }
-    int count_select = round_fl_to_int(count_visible_pt * randfac);
-    BLI_array_randomize(visible_pts, sizeof(int), count_visible_pt, seed);
+      int count_visible_pt = 0;
+      LOOP_VISIBLE_POINTS {
+        visible_pts[count_visible_pt++] = point;
+      }
+      int count_select = round_fl_to_int(count_visible_pt * randfac);
+      BLI_array_randomize(visible_pts, sizeof(int), count_visible_pt, seed);
 
-    for (int i = 0; i < count_select; i++) {
-      PTCacheEditPoint *point = visible_pts[i];
-      LOOP_KEYS {
+      for (int i = 0; i < count_select; i++) {
+        PTCacheEditPoint *point = visible_pts[i];
+        LOOP_KEYS {
+          data.is_changed |= select_action_apply(point, key, select ? SEL_SELECT : SEL_DESELECT);
+        }
+      }
+      for (int i = count_select; i < count_visible_pt; i++) {
+        PTCacheEditPoint *point = visible_pts[i];
+        LOOP_KEYS {
+          data.is_changed |= select_action_apply(point, key, select ? SEL_DESELECT : SEL_DESELECT);
+        }
+      }
+      MEM_freeN(visible_pts);
+      break;
+    case RAN_POINTS:
+      // Draw randomly from the visible keys of visible points.
+
+      int count_visible_keys = 0;
+      LOOP_VISIBLE_POINTS {
+        LOOP_VISIBLE_KEYS {
+          count_visible_keys++;
+        }
+      }
+
+      struct PointKeyPair {
+        PTCacheEditPoint *point;
+        PTCacheEditKey *key;
+      };
+
+      struct PointKeyPair *visible_keys = MEM_mallocN(
+          sizeof(struct PointKeyPair) * count_visible_keys, __func__);
+      int totk = 0;
+      LOOP_VISIBLE_POINTS {
+        LOOP_VISIBLE_KEYS {
+          visible_keys[totk++] = (struct PointKeyPair){point, key};
+        }
+      }
+
+      int draws_needed = round_fl_to_int(count_visible_keys * randfac);
+
+      for (int i = 0; i < draws_needed; i++) {
+        struct PointKeyPair pair = visible_keys[i];
+        PTCacheEditPoint *point = pair.point;
+        PTCacheEditKey *key = pair.key;
         data.is_changed |= select_action_apply(point, key, select ? SEL_SELECT : SEL_DESELECT);
       }
-    }
-    for (int i = count_select; i < count_visible_pt; i++) {
-      PTCacheEditPoint *point = visible_pts[i];
-      LOOP_KEYS {
-        data.is_changed |= select_action_apply(point, key, select ? SEL_DESELECT : SEL_DESELECT);
+      for (int i = draws_needed; i < count_visible_keys; i++) {
+        struct PointKeyPair pair = visible_keys[i];
+        PTCacheEditPoint *point = pair.point;
+        PTCacheEditKey *key = pair.key;
+        data.is_changed |= select_action_apply(point, key, select ? SEL_SELECT : SEL_DESELECT);
       }
-    }
-    MEM_freeN(visible_pts);
-  }
-  else if (type == RAN_POINTS) {
-    // Draw randomly from the visible keys of visible points.
-
-    int count_visible_keys = 0;
-    LOOP_VISIBLE_POINTS {
-      LOOP_VISIBLE_KEYS {
-        count_visible_keys++;
-      }
-    }
-
-    struct PointKeyPair {
-      PTCacheEditPoint *point;
-      PTCacheEditKey *key;
-    };
-
-    struct PointKeyPair *visible_keys = MEM_mallocN(
-        sizeof(struct PointKeyPair *) * count_visible_keys, __func__);
-    int totk = 0;
-    LOOP_VISIBLE_POINTS {
-      LOOP_VISIBLE_KEYS {
-        visible_keys[totk++] = (struct PointKeyPair){point, key};
-      }
-    }
-
-    int draws_needed = round_fl_to_int(count_visible_keys * randfac);
-
-    for (int i = 0; i < draws_needed; i++) {
-      struct PointKeyPair pair = visible_keys[i];
-      PTCacheEditPoint *point = pair.point;
-      PTCacheEditKey *key = pair.key;
-      data.is_changed |= select_action_apply(point, key, select ? SEL_SELECT : SEL_DESELECT);
-    }
-    for (int i = draws_needed; i < count_visible_keys; i++) {
-      struct PointKeyPair pair = visible_keys[i];
-      PTCacheEditPoint *point = pair.point;
-      PTCacheEditKey *key = pair.key;
-      data.is_changed |= select_action_apply(point, key, select ? SEL_SELECT : SEL_DESELECT);
-    }
-    MEM_freeN(visible_keys);
+      MEM_freeN(visible_keys);
+      break;
   }
 
   BLI_rng_free(rng);
