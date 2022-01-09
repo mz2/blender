@@ -2096,7 +2096,6 @@ static int select_random_exec(bContext *C, wmOperator *op)
   const float randfac = RNA_float_get(op->ptr, "ratio");
   const int seed = WM_operator_properties_select_random_seed_increment_get(op);
   const bool select = (RNA_enum_get(op->ptr, "action") == SEL_SELECT);
-
   RNG *rng;
 
   type = RNA_enum_get(op->ptr, "type");
